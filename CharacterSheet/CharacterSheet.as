@@ -6,6 +6,7 @@ import Components.Meter;
 import Shared.GlobalFunc;
 import gfx.ui.NavigationCode;
 import skse;
+import DxScanToWindows;
 
 class CharacterSheet extends MovieClip
 {
@@ -76,6 +77,15 @@ class CharacterSheet extends MovieClip
 	var changeTitleButton:MovieClip;
 	var changeTitleText:MovieClip;
 	
+	var detailsKey:Number;
+	var actionKey:Number;
+	var navLeftKey:Number;
+	var navRightKey:Number;
+	var detailsGamepadKey:Number;
+	var actionGamepadKey:Number;
+	var navLeftGamepadKey:Number;
+	var navRightGamepadKey:Number;
+	
 	private var _platform:Number;
 
 	private var _deleteControls:Object;
@@ -128,10 +138,13 @@ class CharacterSheet extends MovieClip
 		SkillDetails._visible = false;
 		CharDetails._visible = false;
 		showDetailText.text = "$DETAIL_BUTTON_SHOW";
+		showDetailText.textAutoSize = "shrink";
 		skillsMenuText.text = "$OPEN_SKILLS_MENU";
+		skillsMenuText.textAutoSize = "shrink";
 		skillsMenuText._visible = false;
 		skillsMenuButton._visible = false;
 		changeTitleText.text = "$CHANGE_PLAYER_TITLE";
+		changeTitleText.textAutoSize = "shrink";
 		changeTitleText._visible = false;
 		changeTitleButton._visible = false;
 		SkillDetails.description.textAutoSize = "shrink";
@@ -163,6 +176,7 @@ class CharacterSheet extends MovieClip
 		Pages.sortOn("index");
 
 		CategoryTitle.category1.textField.text = Pages[INFO_IDX].text;
+		CategoryTitle.category1.textField.textAutoSize = "shrink";
 		CategoryTitle.category1.index = INFO_IDX;
 		CategoryTitle.category1.mask._alpha = 0;
 		CategoryTitle.category1.mask.onRollOver = function()
@@ -181,6 +195,7 @@ class CharacterSheet extends MovieClip
 			}
 		};
 		CategoryTitle.category2.textField.text = Pages[SKILLS_IDX].text;
+		CategoryTitle.category2.textField.textAutoSize = "shrink";
 		CategoryTitle.category2.index = SKILLS_IDX;
 		CategoryTitle.category2.mask._alpha = 0;
 		CategoryTitle.category2.mask.onRollOver = function()
@@ -199,6 +214,7 @@ class CharacterSheet extends MovieClip
 			}
 		};
 		CategoryTitle.category3.textField.text = Pages[FACTIONS_IDX].text;
+		CategoryTitle.category3.textField.textAutoSize = "shrink";
 		CategoryTitle.category3.index = FACTIONS_IDX;
 		CategoryTitle.category3.mask._alpha = 0;
 		CategoryTitle.category3.mask.onRollOver = function()
@@ -217,6 +233,7 @@ class CharacterSheet extends MovieClip
 			}
 		};
 		CategoryTitle.category4.textField.text = Pages[STATS_IDX].text;
+		CategoryTitle.category4.textField.textAutoSize = "shrink";
 		CategoryTitle.category4.index = STATS_IDX;
 		CategoryTitle.category4.mask._alpha = 0;
 		CategoryTitle.category4.mask.onRollOver = function()
@@ -268,11 +285,12 @@ class CharacterSheet extends MovieClip
 		var bHandledInput:Boolean = false;
 		if (GlobalFunc.IsKeyPressed(details))
 		{
+			//debugLog(details.toString());
 			if (details.navEquivalent == NavigationCode.TAB || details.navEquivalent == NavigationCode.GAMEPAD_B) {
 				CloseMenu();
 				bHandledInput = true;
 			}
-			else if (details.navEquivalent == NavigationCode.GAMEPAD_L1 || details.code == 81)
+			else if (details.code == navLeftGamepadKey || details.code == navLeftKey)
 			{
 				var nextPage;
 				if (iCurrentPage == 0){
@@ -281,10 +299,9 @@ class CharacterSheet extends MovieClip
 					nextPage = iCurrentPage - 1;
 				}
 				ChangePage(nextPage);
-				GameDelegate.call("PlaySound",["UIMenuPrevNext"]);
 				bHandledInput = true;
 			}
-			else if (details.navEquivalent == NavigationCode.GAMEPAD_R1 || details.code == 82)
+			else if (details.code == navRightGamepadKey || details.code == navRightKey)
 			{
 				var nextPage;
 				if (iCurrentPage >= Pages.length - 1){
@@ -293,10 +310,9 @@ class CharacterSheet extends MovieClip
 					nextPage = iCurrentPage + 1;
 				}
 				ChangePage(nextPage);
-				GameDelegate.call("PlaySound",["UIMenuPrevNext"]);
 				bHandledInput = true;
 			}
-			else if (details.code == 71 || details.navEquivalent == NavigationCode.GAMEPAD_Y)
+			else if (details.code == actionKey || details.code == actionGamepadKey)
 			{
 				if (skillsMenuButton._visible) {
 				  var self = this;
@@ -388,7 +404,7 @@ class CharacterSheet extends MovieClip
 				}
 				bHandledInput = true;
 			}
-			else if (details.code == 70 || details.navEquivalent == NavigationCode.GAMEPAD_R3)
+			else if (details.code == detailsKey || details.code == detailsGamepadKey)
 			{
 				bShowDetails = !bShowDetails;
 				
@@ -556,15 +572,16 @@ class CharacterSheet extends MovieClip
 		if (iCurrentPage == SKILLS_IDX){
 			skillsMenuButton._visible = true;
 			skillsMenuText._visible = true;
+			skillsMenuText.textAutoSize = "shrink";
 			changeTitleButton._visible = false;
 			changeTitleText._visible = false;
 		} else if (iCurrentPage == FACTIONS_IDX && iCurrentFactionIndex > -1){
 			changeTitleButton._visible = true;
 			changeTitleText._visible = true;
+			changeTitleText.textAutoSize = "shrink";
 			skillsMenuButton._visible = false;
 			skillsMenuText._visible = false;
-		} 
-		else {
+		} else {
 			skillsMenuButton._visible = false;
 			skillsMenuText._visible = false;
 			changeTitleButton._visible = false;
@@ -575,6 +592,7 @@ class CharacterSheet extends MovieClip
 		Categories[iCurrentPage].selector._visible = true;
 		Categories[iCurrentPage].textField.textColor = 0xffffff;
 		Categories[iCurrentPage].textField._alpha = 100;
+		GameDelegate.call("PlaySound",["UIMenuPrevNext"]);
 	}
 	
 	function SetGenericData(playerName, race, level, xpProgress, datetime, constellation, raceDescription, constellationDescription, condition): Void
@@ -624,7 +642,7 @@ class CharacterSheet extends MovieClip
 			_parent._parent._parent._parent.onInfoRollOut(this._parent);
 		};
 		
-		MenuHeader.playerTitleRank._x = InfoHolder.name.title.textWidth + 20 + MenuHeader.playerTitleRank._width;
+		MenuHeader.playerTitleRank._x = MenuHeader.CharacterName._x + MenuHeader.CharacterName.textWidth + 20;
 		MenuHeader.playerTitleConnector._x = MenuHeader.playerTitleRank._x + MenuHeader.playerTitleRank._width;
 		MenuHeader.playerTitleFaction._x = MenuHeader.playerTitleConnector._x + MenuHeader.playerTitleConnector._width;
 	}
@@ -682,7 +700,7 @@ class CharacterSheet extends MovieClip
 		var meterPercent: Number = 100 * (Math.max(0, Math.min(currentValue, maxValue)) / maxValue);
 			
 		meter.gotoAndStop(200 - 2*meterPercent);
-		textArea.text = Math.floor(currentValue) + "/" + maxValue;
+		textArea.text = Math.floor(currentValue) + "/" + Math.floor(maxValue);
 		if (modifier > 0) {
 			textArea.textColor = 0x1C8F16;
 		} else if (modifier < 0){
@@ -816,8 +834,10 @@ class CharacterSheet extends MovieClip
 				//debugLog("Faction: "+faction.factionName);
 				var factionClip:MovieClip = FactionsHolder.attachMovie("factionSelector", "faction" + i.toString(), FactionsHolder.getNextHighestDepth(), {_x:0, _y:offset});
 				factionClip.textField.text = faction.factionName;
+				factionClip.textField.textAutoSize = "shrink";
 				factionClip.factionName = faction.factionName;
 				factionClip.rank.text = faction.rank;
+				factionClip.rank.textAutoSize = "shrink";
 				factionClip.rank = faction.rank;
 				factionClip.rankOnly = faction.rankDisplayOnly;
 				factionClip.icon.gotoAndStop(faction.id);
@@ -869,7 +889,7 @@ class CharacterSheet extends MovieClip
 	}
 	
 	function ChangePlayerTitle(){
-		GameDelegate.call("SaveFactionTitle", [aFactionClipsContainer[iCurrentFactionIndex].rank, aFactionClipsContainer[iCurrentFactionIndex].factionName]);
+		GameDelegate.call("SaveFactionTitle", [aFactionClipsContainer[iCurrentFactionIndex].rank, aFactionClipsContainer[iCurrentFactionIndex].factionName, aFactionClipsContainer[iCurrentFactionIndex].rankOnly]);
 		SetPlayerTitle(aFactionClipsContainer[iCurrentFactionIndex].rank, aFactionClipsContainer[iCurrentFactionIndex].factionName, aFactionClipsContainer[iCurrentFactionIndex].rankOnly);
 	}
 	
@@ -877,14 +897,14 @@ class CharacterSheet extends MovieClip
 		StatsHolder.healRateValue.text = Math.floor(healRate);
 		StatsHolder.magickaRateValue.text = Math.floor(magickaRate);
 		StatsHolder.staminaRateValue.text = Math.floor(staminaRate);
-		StatsHolder.speedValue.text = speedMult;
-		StatsHolder.weaponSpeedValue.text = weaponSpeedMult;
-		StatsHolder.magicResistValue.text = magicResist;
-		StatsHolder.fireResistValue.text = fireResist;
-		StatsHolder.frostResistValue.text = frostResist;
-		StatsHolder.shockResistValue.text = shockResist;
-		StatsHolder.poisonResistValue.text = poisonResist;
-		StatsHolder.diseaseResistValue.text = diseaseResist;
+		StatsHolder.speedValue.text = Math.floor(speedMult);
+		StatsHolder.weaponSpeedValue.text = Math.floor(weaponSpeedMult);
+		StatsHolder.magicResistValue.text = Math.floor(magicResist);
+		StatsHolder.fireResistValue.text = Math.floor(fireResist);
+		StatsHolder.frostResistValue.text = Math.floor(frostResist);
+		StatsHolder.shockResistValue.text = Math.floor(shockResist);
+		StatsHolder.poisonResistValue.text = Math.floor(poisonResist);
+		StatsHolder.diseaseResistValue.text = Math.floor(diseaseResist);
 	}
 	
 	function SetMiscData(gold, armor, carryWeight, maxCarryWeight, warmth): Void{
@@ -901,21 +921,30 @@ class CharacterSheet extends MovieClip
 		}
 	}
 	
-	function SetGamepad(gamepad)
+	function SetGamepad(gamepad, detailsKeyNum, actionKeyNum, navLeftKeyNum, navRightKeyNum, detailsGamepadKeyNum, actionGamepadKeyNum, navLeftGamepadKeyNum, navRightGamepadKeyNum)
 	{
+		detailsKey = DxScanToWindows.dxScanCodeToVK(detailsKeyNum);
+		actionKey = DxScanToWindows.dxScanCodeToVK(actionKeyNum);
+		navLeftKey = DxScanToWindows.dxScanCodeToVK(navLeftKeyNum);
+		navRightKey = DxScanToWindows.dxScanCodeToVK(navRightKeyNum);
+		detailsGamepadKey = DxScanToWindows.dxScanCodeToVK(detailsGamepadKeyNum);
+		actionGamepadKey = DxScanToWindows.dxScanCodeToVK(actionGamepadKeyNum);
+		navLeftGamepadKey = DxScanToWindows.dxScanCodeToVK(navLeftGamepadKeyNum);
+		navRightGamepadKey = DxScanToWindows.dxScanCodeToVK(navRightGamepadKeyNum);
+
 		bGamepad = gamepad;
 		if (!bGamepad){
-			CategoryTitle.moveLeft.gotoAndStop(16); //Q
-			CategoryTitle.moveRight.gotoAndStop(19);	//R
-			skillsMenuButton.gotoAndStop(34); //G
-			changeTitleButton.gotoAndStop(34); //G
-			showDetailButton.gotoAndStop(33); //F
+			CategoryTitle.moveLeft.gotoAndStop(navLeftKeyNum);
+			CategoryTitle.moveRight.gotoAndStop(navRightKeyNum);
+			skillsMenuButton.gotoAndStop(actionKeyNum);
+			changeTitleButton.gotoAndStop(actionKeyNum);
+			showDetailButton.gotoAndStop(detailsKeyNum);
 		}else{
-			CategoryTitle.moveLeft.gotoAndStop(274); //LB
-			CategoryTitle.moveRight.gotoAndStop(275); //RB
-			skillsMenuButton.gotoAndStop(279); //Y
-			changeTitleButton.gotoAndStop(279); //Y
-			showDetailButton.gotoAndStop(273); //RS
+			CategoryTitle.moveLeft.gotoAndStop(navLeftGamepadKeyNum);
+			CategoryTitle.moveRight.gotoAndStop(navRightGamepadKeyNum);
+			skillsMenuButton.gotoAndStop(actionGamepadKeyNum);
+			changeTitleButton.gotoAndStop(actionGamepadKeyNum);
+			showDetailButton.gotoAndStop(detailsGamepadKeyNum);
 		}
 	}
 	
