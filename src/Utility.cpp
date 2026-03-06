@@ -543,7 +543,7 @@ void FreezeNPC(RE::Actor* a_actor) {
     }
 
     a_actor->EnableAI(false);
-    a_actor->StopMoving(1.0f);
+    //a_actor->StopMoving(1.0f);
 }
 
 void UnfreezeNPC(RE::Actor* a_actor) {
@@ -552,8 +552,8 @@ void UnfreezeNPC(RE::Actor* a_actor) {
     if (const auto charController = a_actor->GetCharController()) {
         charController->flags.reset(RE::CHARACTER_FLAGS::kNotPushable);
 
-        charController->flags.set(RE::CHARACTER_FLAGS::kRecordHits);
-        charController->flags.set(RE::CHARACTER_FLAGS::kHitFlags);
+        /*charController->flags.set(RE::CHARACTER_FLAGS::kRecordHits);
+        charController->flags.set(RE::CHARACTER_FLAGS::kHitFlags);*/
     }
 
     a_actor->EnableAI(true);
@@ -596,6 +596,29 @@ const TESClass* GetApprenticeClass(const std::map<int, TESClass>& classes)
     {
         auto classTracker = classTrackerForm->As<RE::TESGlobal>();
         int classIndex = static_cast<int>(classTracker->value);
+
+        for (const auto& [id, tesClass] : classes)
+        {
+            if (id == classIndex) {
+                instance = &tesClass;
+            }
+        }
+    }
+
+    return instance;
+}
+
+const TESClass* GetApprenticeTrait(const std::map<int, TESClass>& classes)
+{
+    const TESClass* instance = &classes.begin()->second;
+
+    const auto dataHandler = RE::TESDataHandler::GetSingleton();
+    auto* traitTrackerForm = dataHandler->LookupForm(RE::FormID(0x600), "Apprentice.esp");
+
+    if (traitTrackerForm)
+    {
+        auto traitTracker = traitTrackerForm->As<RE::TESGlobal>();
+        int classIndex = static_cast<int>(traitTracker->value);
 
         for (const auto& [id, tesClass] : classes)
         {

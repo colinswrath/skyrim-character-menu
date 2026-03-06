@@ -574,21 +574,27 @@ namespace Scaleform {
         }
 
         const TESClass* match;
+        const TESClass* traitMatch;
         if (IsPluginLoaded("Firmament")) {
             match = GetBestMatchingClass(classicClassesFirmament, skillLevels);
         } else if (IsPluginLoaded("Constellations")) {
             match = GetBestMatchingClass(classicClassesConstellations, skillLevels);
         } else if (IsPluginLoaded("Apprentice")) {
             match = GetApprenticeClass(apprenticeClasses);
+            traitMatch = GetApprenticeTrait(apprenticeTraits);
+            logger::info("Trait name {}",traitMatch ? traitMatch->name : "NONE");
         } else {
             match = GetBestMatchingClass(classicClasses, skillLevels);
         }
 
-        std::array<RE::GFxValue, 4> skillsData;
+        std::array<RE::GFxValue, 6> skillsData;
         skillsData[0] = skillsArray;
         skillsData[1] = match->name;
         skillsData[2] = match->specialization;
         skillsData[3] = match->description;
+        skillsData[4] = traitMatch->name;
+        skillsData[5] = traitMatch->description;
+
         menu->uiMovie->Invoke("_root.CharacterSheet_mc.SetSkills", nullptr, skillsData.data(), skillsData.size());
     }
 

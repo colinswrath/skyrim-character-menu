@@ -282,3 +282,31 @@ std::map<int, TESClass> apprenticeClasses = {
     {17, {"$Warrior",    {}, "$Combat",  "$Apprentice_Warrior_Description"}},
     {18, {"$Witchhunter",{}, "$Magic",   "$Apprentice_Witchhunter_Description"}}
 };
+
+std::map<int, TESClass> apprenticeTraits = {
+    {0,  {"-", {}, "", ""}},
+    {1,  {"$Acrobatic",   {}, "", "$Apprentice_Acrobatic_Description"}},
+    {2,  {"$Arcane",      {}, "", "$Apprentice_Arcane_Description"}},
+    {3,  {"$Athletic",    {}, "", "$Apprentice_Athletic_Description"}},
+    {4,  {"$Beloved",     {}, "", "$Apprentice_Beloved_Description"}},
+    {5,  {"$Bitten",      {}, "", "$Apprentice_Bitten_Description"}},
+    {6,  {"$Blessed",     {}, "", "$Apprentice_Blessed_Description"}},
+    {7,  {"$Brute",       {}, "", "$Apprentice_Brute_Description"}},
+    {8,  {"$Cannibal",    {}, "", "$Apprentice_Cannibal_Description"}},
+    {9,  {"$Careful",     {}, "", "$Apprentice_Careful_Description"}},
+    {10, {"$Charming",    {}, "", "$Apprentice_Charming_Description"}},
+    {11, {"$Coward",      {}, "", "$Apprentice_Coward_Description"}},
+    {12, {"$Drunkard",    {}, "", "$Apprentice_Drunkard_Description"}},
+    {13, {"$Faithless",   {}, "", "$Apprentice_Faithless_Description"}},
+    {14, {"$Foolhardy",   {}, "", "$Apprentice_Foolhardy_Description"}},
+    {15, {"$Gifted",      {}, "", "$Apprentice_Gifted_Description"}},
+    {16, {"$Hoarder",     {}, "", "$Apprentice_Hoarder_Description"}},
+    {17, {"$Milkdrinker", {}, "", "$Apprentice_Milkdrinker_Description"}},
+    {18, {"$Mundane",     {}, "", "$Apprentice_Mundane_Description"}},
+    {19, {"$Novice",      {}, "", "$Apprentice_Novice_Description"}},
+    {20, {"$Reckless",    {}, "", "$Apprentice_Reckless_Description"}},
+    {21, {"$Salty",       {}, "", "$Apprentice_Salty_Description"}},
+    {22, {"$Sweet Tooth", {}, "", "$Apprentice_SweetTooth_Description"}},
+    {23, {"$Trollkin",    {}, "", "$Apprentice_Trollkin_Description"}},
+    {24, {"$Wanted",      {}, "", "$Apprentice_Wanted_Description"}}
+};
