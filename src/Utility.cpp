@@ -613,7 +613,7 @@ const TESClass* GetApprenticeTrait(const std::map<int, TESClass>& classes)
     const TESClass* instance = &classes.begin()->second;
 
     const auto dataHandler = RE::TESDataHandler::GetSingleton();
-    auto* traitTrackerForm = dataHandler->LookupForm(RE::FormID(0x600), "Apprentice.esp");
+    auto* traitTrackerForm = dataHandler->LookupForm(RE::FormID(0x161), "Apprentice.esp");
 
     if (traitTrackerForm)
     {

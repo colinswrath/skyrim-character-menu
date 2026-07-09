@@ -141,7 +141,6 @@ RE::BSEventNotifyControl EventProcessor::ProcessEvent(RE::InputEvent* const* eve
     if (!eventPtr || !*eventPtr || !RE::Main::GetSingleton()->gameActive) {
         return RE::BSEventNotifyControl::kContinue;
     }
-
     auto* event = *eventPtr;
     if (event->eventType == RE::INPUT_EVENT_TYPE::kButton) {
         auto* buttonEvent = event->AsButtonEvent();

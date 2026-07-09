@@ -602,7 +602,8 @@ namespace Scaleform {
         std::array<RE::GFxValue, 5> miscData;
 
         int playerGold = GetPlayerGold();
-        int armorRating = target->CalcArmorRating();
+        //int armorRating = target->CalcArmorRating();
+        int armorRating = target->AsActorValueOwner()->GetActorValue(RE::ActorValue::kDamageResist);
         float playerWeight = target->GetWeightInContainer();
         int carryWeight = target->AsActorValueOwner()->GetActorValue(RE::ActorValue::kCarryWeight);
         int warmth = -1;

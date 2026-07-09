@@ -10,7 +10,12 @@ import DxScanToWindows;
 
 class CharacterSheet extends MovieClip
 {
-	#include "../version.as"
+	public static var SKYUI_RELEASE_IDX: Number		= 16;
+
+	public static var SKYUI_VERSION_MAJOR: Number	= 4;
+	public static var SKYUI_VERSION_MINOR: Number	= 1;
+	
+	public static var SKYUI_VERSION_STRING: String = (SKYUI_VERSION_MAJOR + "." + SKYUI_VERSION_MINOR);
 	
 	static var INFO_IDX = 0;
 	static var SKILLS_IDX = 1;
