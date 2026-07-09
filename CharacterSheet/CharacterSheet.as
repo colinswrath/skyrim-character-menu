@@ -10,7 +10,12 @@ import DxScanToWindows;
 
 class CharacterSheet extends MovieClip
 {
-	#include "../version.as"
+	public static var SKYUI_RELEASE_IDX: Number		= 16;
+
+	public static var SKYUI_VERSION_MAJOR: Number	= 4;
+	public static var SKYUI_VERSION_MINOR: Number	= 1;
+	
+	public static var SKYUI_VERSION_STRING: String = (SKYUI_VERSION_MAJOR + "." + SKYUI_VERSION_MINOR);
 	
 	static var INFO_IDX = 0;
 	static var SKILLS_IDX = 1;
@@ -133,6 +138,9 @@ class CharacterSheet extends MovieClip
 		InfoHolder.attrClass.title.text = "$CLASS";
 		InfoHolder.attrClass.highlight._visible = false;
 		InfoHolder.attrClass.index = 3;
+		InfoHolder.attrTrait.title.text = "$TRAIT";
+		InfoHolder.attrTrait.highlight._visible = false;
+		InfoHolder.attrTrait.index = 4;
 		MenuHeader.playerTitle.text = "";
 		
 		SkillDetails._visible = false;
@@ -275,6 +283,7 @@ class CharacterSheet extends MovieClip
 		aInfoClipsContainer.push(InfoHolder.race);
 		aInfoClipsContainer.push(InfoHolder.constellation);
 		aInfoClipsContainer.push(InfoHolder.attrClass);
+		aInfoClipsContainer.push(InfoHolder.attrTrait);
 		
 		SetPlatform(_platform, false);
 		GameDelegate.call("PlaySound", ["UIJournalOpen"]);
@@ -395,7 +404,7 @@ class CharacterSheet extends MovieClip
 					}
 				}
 				else if (iCurrentPage == INFO_IDX){
-					if (iCurrentInfoIndex < 3){
+					if (iCurrentInfoIndex < 4){
 						onInfoHover(aInfoClipsContainer[iCurrentInfoIndex + 1])
 					}
 					if (bShowDetails && iCurrentInfoIndex > 0){
@@ -708,7 +717,7 @@ class CharacterSheet extends MovieClip
 		}
 	}
 	
-	function SetSkills(skillsData, attributedClass, classSpecialization, classDescription): Void{
+	function SetSkills(skillsData, attributedClass, classSpecialization, classDescription, traitName, traitDescription): Void{
 		alphabetSort(skillsData, "skillName");
 		//numericSort(skillsData, "level", true);
 		
@@ -739,6 +748,20 @@ class CharacterSheet extends MovieClip
 			skillClip.index = aSkillClipsContainer.length;
 			aSkillClipsContainer.push(skillClip);
 		}
+		InfoHolder.attrTrait.info.text = traitName;
+		InfoHolder.attrTrait.descTitle = traitName;
+		InfoHolder.attrTrait.description = traitDescription;
+		InfoHolder.attrTrait.spec = "";
+		InfoHolder.attrTrait.mask._alpha = 0;
+		InfoHolder.attrTrait.mask.onRollOver = function()
+		{
+			_parent._parent._parent._parent.onInfoHover(this._parent);
+		};
+		InfoHolder.attrTrait.mask.onRollOut = function()
+		{
+			_parent._parent._parent._parent.onInfoRollOut(this._parent);
+		};
+		
 		InfoHolder.attrClass.info.text = attributedClass;
 		InfoHolder.attrClass.descTitle = attributedClass;
 		InfoHolder.attrClass.description = classDescription;

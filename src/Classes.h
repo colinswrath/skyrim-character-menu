@@ -11,5 +11,7 @@ struct TESClass {
 extern std::vector<TESClass> classicClasses;
 extern std::vector<TESClass> classicClassesConstellations;
 extern std::vector<TESClass> classicClassesFirmament;
+extern std::map<int, TESClass> apprenticeClasses;
+extern std::map<int, TESClass> apprenticeTraits;
 
 #endif  // CLASSES_H
