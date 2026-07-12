@@ -574,7 +574,9 @@ namespace Scaleform {
         }
 
         const TESClass* match;
-        const TESClass* traitMatch;
+        TESClass defaultTrait{ "-", {}, "", "" };
+
+        const TESClass* traitMatch = &defaultTrait;
         if (IsPluginLoaded("Firmament")) {
             match = GetBestMatchingClass(classicClassesFirmament, skillLevels);
         } else if (IsPluginLoaded("Constellations")) {
@@ -582,9 +584,13 @@ namespace Scaleform {
         } else if (IsPluginLoaded("Apprentice")) {
             match = GetApprenticeClass(apprenticeClasses);
             traitMatch = GetApprenticeTrait(apprenticeTraits);
-            logger::info("Trait name {}",traitMatch ? traitMatch->name : "NONE");
         } else {
             match = GetBestMatchingClass(classicClasses, skillLevels);
+        }
+
+        if (IsPluginLoaded("Apprentice")) {
+            match = GetApprenticeClass(apprenticeClasses);
+            traitMatch = GetApprenticeTrait(apprenticeTraits);
         }
 
         std::array<RE::GFxValue, 6> skillsData;
