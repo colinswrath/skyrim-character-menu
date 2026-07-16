@@ -25,6 +25,7 @@ int navLeftGamepadKey;
 int navRightGamepadKey;
 int enableBlur;
 bool g_isUltraWide = false;
+bool lowercaseName = false;
 
 RE::Actor* targetActor;
 bool forced3rdPerson;
@@ -255,6 +256,8 @@ void LoadDataFromINI() {
     const char* navLeftGamepadStr = ini.GetValue("General", "iNavLeftGamepad", "274"); // LB
     const char* navRightGamepadStr = ini.GetValue("General", "iNavRightGamepad", "275"); // RB
     const char* enable_blur = ini.GetValue("General", "iEnableBlur", "1");
+    lowercaseName = ini.GetBoolValue("General", "bLowerCaseName", "false");
+
     menuHotkey = std::stoi(keycodeStr);
     detailsKey = std::stoi(detailsStr);
     actionKey = std::stoi(actionStr);
@@ -525,14 +528,17 @@ void ResetCamera() {
 
 //credit goes to powerofthree for the freeze and unfreeze functions (https://github.com/powerof3/ClassicParalysis)
 void FreezeNPC(RE::Actor* a_actor) {
-    a_actor->PauseCurrentDialogue();
-    //a_actor->InterruptCast(false);
-    //a_actor->StopInteractingQuick(true);
-    
+
     if (const auto currentProcess = a_actor->GetActorRuntimeData().currentProcess) {
+        if (currentProcess->high->unk470 || currentProcess->high->approachingAutoTeleportDoor || currentProcess->high->fadeState == RE::HighProcessData::FADE_STATE::kTeleportOut) //unk470 = doorActivated
+        {
+            //If going through load door we do not want to freeze
+            return;
+        }
         currentProcess->ClearMuzzleFlashes();
     }
 
+    a_actor->PauseCurrentDialogue();
     a_actor->GetActorRuntimeData().boolFlags.reset(RE::Actor::BOOL_FLAGS::kShouldAnimGraphUpdate);
 
     if (const auto charController = a_actor->GetCharController(); charController) {
@@ -543,7 +549,6 @@ void FreezeNPC(RE::Actor* a_actor) {
     }
 
     a_actor->EnableAI(false);
-    //a_actor->StopMoving(1.0f);
 }
 
 void UnfreezeNPC(RE::Actor* a_actor) {
@@ -551,9 +556,6 @@ void UnfreezeNPC(RE::Actor* a_actor) {
 
     if (const auto charController = a_actor->GetCharController()) {
         charController->flags.reset(RE::CHARACTER_FLAGS::kNotPushable);
-
-        /*charController->flags.set(RE::CHARACTER_FLAGS::kRecordHits);
-        charController->flags.set(RE::CHARACTER_FLAGS::kHitFlags);*/
     }
 
     a_actor->EnableAI(true);

@@ -285,7 +285,7 @@ namespace Scaleform {
             constellationDesc = "";
         }
 
-        std::array<RE::GFxValue, 9> genericData;
+        std::array<RE::GFxValue, 10> genericData;
         genericData[0] = name;
         genericData[1] = race;
         genericData[2] = level;
@@ -295,6 +295,7 @@ namespace Scaleform {
         genericData[6] = raceDesc.c_str();
         genericData[7] = constellationDesc.c_str();
         genericData[8] = GetPlayerCondition();
+        genericData[9] = lowercaseName;
         menu->uiMovie->Invoke("_root.CharacterSheet_mc.SetGenericData", nullptr, genericData.data(),
                               genericData.size());
     }
@@ -467,7 +468,18 @@ namespace Scaleform {
                         }
                     }
                 }
-                auto key = GetActorValueKey(av);  // used for class extrapolation
+
+                std::string key = GetActorValueKey(av);  // default
+
+                if (IsPluginLoaded("HandToHand")) {
+                    if (av == RE::ActorValue::kLockpicking) {
+                        key = "handtohandmag";
+                    }
+                    else if (av == RE::ActorValue::kPickpocket) {
+                        key = "securitymag";
+                    }
+                }
+
                 skillLevels[key] = value;         // used for class extrapolation
                 logger::trace("{} ({}): {}\nFrame: {}", name, key, value, xpFrame);
                 skill.SetMember("skillName", name);
@@ -574,7 +586,7 @@ namespace Scaleform {
         }
 
         const TESClass* match;
-        TESClass defaultTrait{ "-", {}, "", "" };
+        TESClass defaultTrait{ "", {}, "", "" };
 
         const TESClass* traitMatch = &defaultTrait;
         if (IsPluginLoaded("Firmament")) {

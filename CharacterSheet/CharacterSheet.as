@@ -604,9 +604,20 @@ class CharacterSheet extends MovieClip
 		GameDelegate.call("PlaySound",["UIMenuPrevNext"]);
 	}
 	
-	function SetGenericData(playerName, race, level, xpProgress, datetime, constellation, raceDescription, constellationDescription, condition): Void
+	function SetGenericData(playerName, race, level, xpProgress, datetime, constellation, raceDescription, constellationDescription, condition, lowerCase): Void
 	{
-		MenuHeader.CharacterName.text = playerName.toUpperCase();
+		if(!lowerCase)
+		{
+			MenuHeader.CharacterName._visible = true;
+			MenuHeader.CharacterNameMedium._visible = false;
+			MenuHeader.CharacterName.text = playerName.toUpperCase();
+		} else
+		{
+			MenuHeader.CharacterName._visible = false;
+			MenuHeader.CharacterNameMedium._visible = true;
+			MenuHeader.CharacterNameMedium.text = playerName;
+		}
+		
 		MenuHeader.CharacterName.autoSize = "left";
 		MenuHeader.playerTitle._x = MenuHeader.CharacterName._x + MenuHeader.CharacterName._width + 30;
 		//MenuHeader.DateText.text = datetime;
@@ -748,19 +759,29 @@ class CharacterSheet extends MovieClip
 			skillClip.index = aSkillClipsContainer.length;
 			aSkillClipsContainer.push(skillClip);
 		}
-		InfoHolder.attrTrait.info.text = traitName;
-		InfoHolder.attrTrait.descTitle = traitName;
-		InfoHolder.attrTrait.description = traitDescription;
-		InfoHolder.attrTrait.spec = "";
-		InfoHolder.attrTrait.mask._alpha = 0;
-		InfoHolder.attrTrait.mask.onRollOver = function()
+		
+		if(traitName == "" && traitDescription == "")
 		{
-			_parent._parent._parent._parent.onInfoHover(this._parent);
-		};
-		InfoHolder.attrTrait.mask.onRollOut = function()
+			InfoHolder.attrTrait._visible = false;
+			InfoHolder.attrTraitIcon._visible = false;
+		} else
 		{
-			_parent._parent._parent._parent.onInfoRollOut(this._parent);
-		};
+			InfoHolder.attrTrait._visible = true;
+			InfoHolder.attrTraitIcon._visible = true;
+			InfoHolder.attrTrait.info.text = traitName;
+			InfoHolder.attrTrait.descTitle = traitName;
+			InfoHolder.attrTrait.description = traitDescription;
+			InfoHolder.attrTrait.spec = "";
+			InfoHolder.attrTrait.mask._alpha = 0;
+			InfoHolder.attrTrait.mask.onRollOver = function()
+			{
+				_parent._parent._parent._parent.onInfoHover(this._parent);
+			};
+			InfoHolder.attrTrait.mask.onRollOut = function()
+			{
+				_parent._parent._parent._parent.onInfoRollOut(this._parent);
+			};
+		}
 		
 		InfoHolder.attrClass.info.text = attributedClass;
 		InfoHolder.attrClass.descTitle = attributedClass;
