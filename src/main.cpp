@@ -1,11 +1,7 @@
-#include <spdlog/sinks/basic_file_sink.h>
-
 #include "Utility.h"
 #include "EventProcessor.h"
 #include "Scaleform.h"
 #include "CharacterSheet.h"
-#define SMOOTHCAM_API_COMMONLIB
-#include "SmoothCamAPI.h"
 #include "APIManager.h"
 #include "Serialization.h"
 
@@ -41,18 +37,13 @@ void SKSEMessageHandler(SKSE::MessagingInterface::Message* message) {
 extern "C" [[maybe_unused]] __declspec(dllexport) bool SKSEPlugin_Load(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
 
-    SetupLog();
-    spdlog::set_level(spdlog::level::info);
-
     auto* ser = SKSE::GetSerializationInterface();
     ser->SetUniqueID('CTTL');
     ser->SetRevertCallback(RevertCallback);
     ser->SetSaveCallback(SaveCallback);
     ser->SetLoadCallback(LoadCallback);
 
-
     SKSE::GetMessagingInterface()->RegisterListener(SKSEMessageHandler);
-    pluginHandle = skse->GetPluginHandle();
 
     LoadDataFromINI();
     LoadFactionDefinitions();

@@ -1,9 +1,20 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "charactersheet",
+  "version-semver": "1.1.0",
+  "license": "GPL-3.0-or-later",
+  "features": {
+    "commonlibsse-ng": {
+      "description": "Dependencies of clib-ng",
+      "dependencies": [ "fmt", "directxtk", "rapidcsv", "spdlog" ]
+    }
+  },
+  "default-features": [ "commonlibsse-ng" ],
   "dependencies": [
-    "commonlibsse-ng",
     "simpleini",
-    "nlohmann-json",
-    "xbyak"
-  ]
+    "xbyak",
+    "clib-util",
+    "nlohmann-json"
+  ],
+  "builtin-baseline": "d5ec528843d29e3a52d745a64b469f810b2cedbf"
 }

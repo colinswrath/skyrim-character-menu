@@ -1,9 +1,4 @@
 #include "Serialization.h"
-
-#include <cstdint>
-#include <type_traits>
-
-#include "RE/Skyrim.h"
 #include "Utility.h"
 
 namespace {

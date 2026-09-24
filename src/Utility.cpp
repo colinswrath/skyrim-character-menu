@@ -1,94 +1,139 @@
 #include "Utility.h"
+#include "APIManager.h"
 #include "Classes.h"
 
-#define SMOOTHCAM_API_COMMONLIB
-#include "SmoothCamAPI.h"
-#include "editorID.hpp"
-//#include "BSSceneGraph.h"
-
-#include <Windows.h>
-#include <spdlog/sinks/basic_file_sink.h>
-
-namespace logger = SKSE::log;
+namespace logger       = SKSE::log;
 constexpr auto MATH_PI = 3.14159265358979323846f;
 
 static std::vector<FactionDef> g_factionDefs;
 
-int menuHotkey;
-int detailsKey;
-int actionKey;
-int navLeftKey;
-int navRightKey;
-int detailsGamepadKey;
-int actionGamepadKey;
-int navLeftGamepadKey;
-int navRightGamepadKey;
-int enableBlur;
+static RE::NiPointer<RE::NiAVObject>    g_blackPlane;
+static RE::NiPointer<RE::TESObjectREFR> g_backdropRef;
+static RE::NiPoint3                     g_savedThirdPersonTranslation;
+static RE::NiPoint3                     g_savedPosOffsetActual;
+static float                            g_savedCurrentZoomOffset;
+static float                            g_savedZoomOffset;
+static bool                             g_savedToggleAnimCam        = false;
+static bool                             g_savedFreeRotationEnabled  = false;
+static float                            g_savedPitchZoomOffset      = 0.0f;
+static bool                             g_savedMountCamera          = false;
+static bool                             g_savedMountActorPitchValid = false;
+static float                            g_savedMountActorPitch      = 0.0f;
+static RE::NiPoint2                     g_savedMountFreeRotation;
+static RE::NiPoint3                     g_savedMountTranslation;
+static RE::NiPoint3                     g_savedMountPosOffsetExpected;
+static RE::NiPoint3                     g_savedMountPosOffsetActual;
+static float                            g_savedMountTargetZoomOffset  = 0.0f;
+static float                            g_savedMountCurrentZoomOffset = 0.0f;
+static float                            g_savedMountSavedZoomOffset   = 0.0f;
+static float                            g_savedTargetYaw              = 0.0f;
+static float                            g_savedCurrentYaw             = 0.0f;
+
+int  menuHotkey;
+int  detailsKey;
+int  actionKey;
+int  navLeftKey;
+int  navRightKey;
+int  detailsGamepadKey;
+int  actionGamepadKey;
+int  navLeftGamepadKey;
+int  navRightGamepadKey;
+int  enableBlur;
 bool g_isUltraWide = false;
 bool lowercaseName = false;
 
-RE::Actor* targetActor;
-bool forced3rdPerson;
-bool rotatedPlayer = false;
-bool fixCameraZoom;
-bool shouldDisableAnimCam;
-float targetAngleX;
-float targetRotation;
-float targetZoomOffset;
-RE::NiPoint2 freeRotation;
-RE::NiPoint2 g_freeRotation;
-RE::TESCameraState* g_prevState = nullptr;
-RE::NiPoint3 posOffsetExpected;
+RE::Actor*                             targetActor;
+bool                                   forced3rdPerson;
+bool                                   rotatedPlayer = false;
+bool                                   fixCameraZoom;
+bool                                   shouldDisableAnimCam;
+float                                  targetAngleX;
+float                                  targetRotation;
+float                                  targetZoomOffset;
+RE::NiPoint2                           freeRotation;
+RE::NiPoint2                           g_freeRotation;
+RE::TESCameraState*                    g_prevState = nullptr;
+RE::NiPoint3                           posOffsetExpected;
 RE::NiPointer<RE::NiFloatInterpolator> radialBlurStrength;
-float blurRadius;
-RE::Setting* overShoulderCombatPosX;
-float fOverShoulderCombatPosX;
-RE::Setting* overShoulderCombatAddY;
-float fOverShoulderCombatAddY;
-RE::Setting* overShoulderCombatPosZ;
-float fOverShoulderCombatPosZ;
-RE::Setting* autoVanityModeDelay;
-float fAutoVanityModeDelay;
-RE::Setting* overShoulderPosX;
-float fOverShoulderPosX;
-RE::Setting* overShoulderPosZ;
-float fOverShoulderPosZ;
-RE::Setting* vanityModeMinDist;
-float fVanityModeMinDist;
-RE::Setting* vanityModeMaxDist;
-float fVanityModeMaxDist;
-RE::Setting* mouseWheelZoomSpeed;
-float fMouseWheelZoomSpeed;
-RE::Setting* togglePOVDelay;
-float fTogglePOVDelay;
-float worldFOV;
-bool playerHeadtrackingEnabled;
-float fNewOverShoulderCombatPosX;
-float fNewOverShoulderCombatAddY;
-float fNewOverShoulderCombatPosZ;
-float timescale;
+float                                  blurRadius;
+RE::Setting*                           overShoulderCombatPosX;
+float                                  fOverShoulderCombatPosX;
+RE::Setting*                           overShoulderCombatAddY;
+float                                  fOverShoulderCombatAddY;
+RE::Setting*                           overShoulderCombatPosZ;
+float                                  fOverShoulderCombatPosZ;
+RE::Setting*                           autoVanityModeDelay;
+float                                  fAutoVanityModeDelay;
+RE::Setting*                           overShoulderPosX;
+float                                  fOverShoulderPosX;
+RE::Setting*                           overShoulderPosZ;
+float                                  fOverShoulderPosZ;
+RE::Setting*                           vanityModeMinDist;
+float                                  fVanityModeMinDist;
+RE::Setting*                           vanityModeMaxDist;
+float                                  fVanityModeMaxDist;
+RE::Setting*                           mouseWheelZoomSpeed;
+float                                  fMouseWheelZoomSpeed;
+RE::Setting*                           togglePOVDelay;
+float                                  fTogglePOVDelay;
+float                                  worldFOV;
+bool                                   playerHeadtrackingEnabled;
+float                                  fNewOverShoulderCombatPosX;
+float                                  fNewOverShoulderCombatAddY;
+float                                  fNewOverShoulderCombatPosZ;
+float                                  timescale;
 
-void SetupLog() {
-    auto logsFolder = SKSE::log::log_directory();
-    if (!logsFolder) SKSE::stl::report_and_fail("SKSE log_directory not provided, logs disabled.");
-    auto pluginName = SKSE::PluginDeclaration::GetSingleton()->GetName();
-    auto logFilePath = *logsFolder / std::format("{}.log", pluginName);
-    auto fileLoggerPtr = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logFilePath.string(), true);
-    auto loggerPtr = std::make_shared<spdlog::logger>("log", std::move(fileLoggerPtr));
-    spdlog::set_default_logger(std::move(loggerPtr));
-    spdlog::set_level(spdlog::level::trace);
-    spdlog::flush_on(spdlog::level::trace);
-}
+namespace
+{
+    bool g_smoothCamHasCameraControl = false;
 
-float GetPlayerXPProgression() {
-    auto player = RE::PlayerCharacter::GetSingleton();
-    auto playerXP = player->GetInfoRuntimeData().skills->data->xp;
-    auto playerLevelThreshold = player->GetInfoRuntimeData().skills->data->levelThreshold;
-    float levelProgression = round((playerXP / playerLevelThreshold) * 140); // LevelProgresssBar movieclip is made of 140 frames and not 100 for some reason...
+    void AcquireSmoothCamCameraControl()
+    {
+        if (!g_SmoothCam || !g_SmoothCam->IsCameraEnabled() || g_smoothCamHasCameraControl) {
+            return;
+        }
+
+        const auto result = g_SmoothCam->RequestCameraControl(SKSE::GetPluginHandle());
+
+        if (result == SmoothCamAPI::APIResult::OK || result == SmoothCamAPI::APIResult::AlreadyGiven) {
+            g_smoothCamHasCameraControl = true;
+            logger::debug("SmoothCam camera control acquired for character menu.");
+            return;
+        }
+
+        logger::warn("Could not acquire SmoothCam camera control. Result: {}", static_cast<int>(result));
+    }
+
+    void ReleaseSmoothCamCameraControl()
+    {
+        if (!g_SmoothCam || !g_smoothCamHasCameraControl) {
+            return;
+        }
+
+        const auto result = g_SmoothCam->ReleaseCameraControl(SKSE::GetPluginHandle());
+
+        if (result != SmoothCamAPI::APIResult::OK) {
+            logger::warn("Could not release SmoothCam camera control. Result: {}", static_cast<int>(result));
+        }
+        else {
+            logger::debug("SmoothCam camera control released.");
+        }
+
+        g_smoothCamHasCameraControl = false;
+    }
+} // namespace
+
+float GetPlayerXPProgression()
+{
+    auto  player               = RE::PlayerCharacter::GetSingleton();
+    auto  playerXP             = player->GetInfoRuntimeData().skills->data->xp;
+    auto  playerLevelThreshold = player->GetInfoRuntimeData().skills->data->levelThreshold;
+    float levelProgression     = round((playerXP / playerLevelThreshold) * 140); // LevelProgresssBar movieclip is made of 140 frames and not 100 for some reason...
     return levelProgression;
 }
 
-std::string GetInGameDate() {
+std::string GetInGameDate()
+{
     auto calendar = RE::Calendar::GetSingleton();
     char datetime[504];
     calendar->GetTimeDateString(datetime, 0x200u, 1);
@@ -96,7 +141,8 @@ std::string GetInGameDate() {
     return dt;
 }
 
-int GetPlayerGold() {
+int GetPlayerGold()
+{
     auto player = RE::PlayerCharacter::GetSingleton();
     if (!player) {
         logger::warn("Player not found.");
@@ -116,14 +162,15 @@ int GetPlayerGold() {
     }
 
     const auto& invCounts = player->GetInventoryCounts();
-    auto it = invCounts.find(goldObject);
-    int totalGold = (it != invCounts.end()) ? it->second : 0;
+    auto        it        = invCounts.find(goldObject);
+    int         totalGold = (it != invCounts.end()) ? it->second : 0;
 
     logger::trace("Player has {} gold.", totalGold);
     return totalGold;
 }
 
-bool HasPlayerSpellByEDID(RE::PlayerCharacter* player, const char* edid) {
+bool HasPlayerSpellByEDID(RE::PlayerCharacter* player, const char* edid)
+{
     if (!player || !edid || !*edid) {
         return false;
     }
@@ -131,7 +178,8 @@ bool HasPlayerSpellByEDID(RE::PlayerCharacter* player, const char* edid) {
     return spell && player->HasSpell(spell);
 }
 
-bool IsPlayerVampire(RE::PlayerCharacter* player) {
+bool IsPlayerVampire(RE::PlayerCharacter* player)
+{
     if (!player) {
         return false;
     }
@@ -140,7 +188,8 @@ bool IsPlayerVampire(RE::PlayerCharacter* player) {
     return vampKW && player->HasKeyword(vampKW);
 }
 
-const char* GetPlayerCondition() {
+const char* GetPlayerCondition()
+{
     auto* player = RE::PlayerCharacter::GetSingleton();
     if (!player) {
         return "";
@@ -159,57 +208,64 @@ const char* GetPlayerCondition() {
     return "";
 }
 
-bool IsPluginLoaded(const std::string& pluginName) {
+bool IsPluginLoaded(const std::string& pluginName)
+{
     std::string dllName = pluginName + ".dll";
 
     HMODULE module = GetModuleHandleA(dllName.c_str());
     if (module) {
         return true;
-    } else {
+    }
+    else {
         return false;
     }
 }
 
-void TogglePlayerControls(bool enable) {
+void TogglePlayerControls(bool enable)
+{
     auto playerControls = RE::PlayerControls::GetSingleton();
     if (playerControls) {
-        playerControls->lookHandler->inputEventHandlingEnabled = enable;
+        playerControls->lookHandler->inputEventHandlingEnabled        = enable;
         playerControls->attackBlockHandler->inputEventHandlingEnabled = enable;
-        playerControls->autoMoveHandler->inputEventHandlingEnabled = enable;
-        playerControls->shoutHandler->inputEventHandlingEnabled = enable;
+        playerControls->autoMoveHandler->inputEventHandlingEnabled    = enable;
+        playerControls->shoutHandler->inputEventHandlingEnabled       = enable;
         playerControls->readyWeaponHandler->inputEventHandlingEnabled = enable;
-        playerControls->activateHandler->inputEventHandlingEnabled = enable;
-        playerControls->sneakHandler->inputEventHandlingEnabled = enable;
-        playerControls->movementHandler->inputEventHandlingEnabled = enable;
-        playerControls->jumpHandler->inputEventHandlingEnabled = enable;
-        playerControls->toggleRunHandler->inputEventHandlingEnabled = enable;
-        playerControls->togglePOVHandler->inputEventHandlingEnabled = enable;
+        playerControls->activateHandler->inputEventHandlingEnabled    = enable;
+        playerControls->sneakHandler->inputEventHandlingEnabled       = enable;
+        playerControls->movementHandler->inputEventHandlingEnabled    = enable;
+        playerControls->jumpHandler->inputEventHandlingEnabled        = enable;
+        playerControls->toggleRunHandler->inputEventHandlingEnabled   = enable;
+        playerControls->togglePOVHandler->inputEventHandlingEnabled   = enable;
     }
 }
 
-bool GetSurvivalModeEnabled() {
+bool GetSurvivalModeEnabled()
+{
     static const std::string survivalEnabled = "Survival_ModeEnabled";
     if (auto form = RE::TESForm::LookupByEditorID(survivalEnabled)) {
-        auto formID = form->GetFormID();
+        auto formID             = form->GetFormID();
         auto survivalModeGlobal = RE::TESForm::LookupByID<RE::TESGlobal>(formID);
-        auto value = survivalModeGlobal->value;
+        auto value              = survivalModeGlobal->value;
         if (value == 1.0) {
             return true;
-        } else {
+        }
+        else {
             return false;
         }
-    } else {
+    }
+    else {
         return false;
     }
 }
 
-bool IsPlayersMount(const RE::Actor* actor) {
+bool IsPlayersMount(const RE::Actor* actor)
+{
     if (!actor) {
         return false;
     }
 
     RE::NiPointer<RE::Actor> playerMount;
-    const auto player = RE::PlayerCharacter::GetSingleton();
+    const auto               player = RE::PlayerCharacter::GetSingleton();
     if (player->GetMount(playerMount)) {
         return playerMount.get() == actor;
     }
@@ -217,7 +273,8 @@ bool IsPlayersMount(const RE::Actor* actor) {
     return false;
 }
 
-bool IsTargetsMount(const RE::Actor* actor, RE::Actor* target) {
+bool IsTargetsMount(const RE::Actor* actor, RE::Actor* target)
+{
     if (!actor) {
         return false;
     }
@@ -230,108 +287,155 @@ bool IsTargetsMount(const RE::Actor* actor, RE::Actor* target) {
     return false;
 }
 
-static bool IsMannequin(const RE::Actor* actor) {
+static bool IsMannequin(const RE::Actor* actor)
+{
     if (actor->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("ManakinRace")) {
         return true;
     }
     return false;
 }
 
-void LoadDataFromINI() {
+void LoadDataFromINI()
+{
     CSimpleIniA ini;
     ini.SetUnicode();
     SI_Error rc = ini.LoadFile(INI_FILE_PATH.c_str());
     if (rc < 0) {
         logger::error("Failed to load INI file: {}", INI_FILE_PATH);
         return;
-    } 
+    }
 
-    const char* keycodeStr = ini.GetValue("General", "iOpenMenuKeycode", "49"); // N
-    const char* detailsStr = ini.GetValue("General", "iShowDetailsKeycode", "33");  // F
-    const char* actionStr = ini.GetValue("General", "iActionButtonKeycode", "34");  // G
-    const char* navLeftStr = ini.GetValue("General", "iNavLeft", "16"); // Q
-    const char* navRightStr = ini.GetValue("General", "iNavRight", "19"); // R
-    const char* detailsGamepadStr = ini.GetValue("General", "iShowDetailsGamepadKeycode", "273");  // RS
-    const char* actionGamepadStr = ini.GetValue("General", "iActionButtonGamepadKeycode", "279");  // Y
-    const char* navLeftGamepadStr = ini.GetValue("General", "iNavLeftGamepad", "274"); // LB
-    const char* navRightGamepadStr = ini.GetValue("General", "iNavRightGamepad", "275"); // RB
-    const char* enable_blur = ini.GetValue("General", "iEnableBlur", "1");
-    lowercaseName = ini.GetBoolValue("General", "bLowerCaseName", "false");
-
-    menuHotkey = std::stoi(keycodeStr);
-    detailsKey = std::stoi(detailsStr);
-    actionKey = std::stoi(actionStr);
-    navLeftKey = std::stoi(navLeftStr);
-    navRightKey = std::stoi(navRightStr);
-    detailsGamepadKey = std::stoi(detailsGamepadStr);
-    actionGamepadKey = std::stoi(actionGamepadStr);
-    navLeftGamepadKey = std::stoi(navLeftGamepadStr);
-    navRightGamepadKey = std::stoi(navRightGamepadStr);
-    enableBlur = std::stoi(enable_blur);
+    const char* keycodeStr         = ini.GetValue("General", "iOpenMenuKeycode", "49");             // N
+    const char* detailsStr         = ini.GetValue("General", "iShowDetailsKeycode", "33");          // F
+    const char* actionStr          = ini.GetValue("General", "iActionButtonKeycode", "34");         // G
+    const char* navLeftStr         = ini.GetValue("General", "iNavLeft", "16");                     // Q
+    const char* navRightStr        = ini.GetValue("General", "iNavRight", "19");                    // R
+    const char* detailsGamepadStr  = ini.GetValue("General", "iShowDetailsGamepadKeycode", "273");  // RS
+    const char* actionGamepadStr   = ini.GetValue("General", "iActionButtonGamepadKeycode", "279"); // Y
+    const char* navLeftGamepadStr  = ini.GetValue("General", "iNavLeftGamepad", "274");             // LB
+    const char* navRightGamepadStr = ini.GetValue("General", "iNavRightGamepad", "275");            // RB
+    const char* enable_blur        = ini.GetValue("General", "iEnableBlur", "1");
+    lowercaseName                  = ini.GetBoolValue("General", "bLowerCaseName", "false");
+    menuHotkey                     = std::stoi(keycodeStr);
+    detailsKey                     = std::stoi(detailsStr);
+    actionKey                      = std::stoi(actionStr);
+    navLeftKey                     = std::stoi(navLeftStr);
+    navRightKey                    = std::stoi(navRightStr);
+    detailsGamepadKey              = std::stoi(detailsGamepadStr);
+    actionGamepadKey               = std::stoi(actionGamepadStr);
+    navLeftGamepadKey              = std::stoi(navLeftGamepadStr);
+    navRightGamepadKey             = std::stoi(navRightGamepadStr);
+    enableBlur                     = std::stoi(enable_blur);
     logger::debug("Loaded keycode: {}", keycodeStr);
     logger::debug("Loaded blur enabled: {}", enable_blur);
 }
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////////
- // All credit goes to derickso/myztikrice for the following functions (https://github.com/derickso/ShowPlayerInMenus)
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+// All credit goes to derickso/myztikrice for the original following functions
+// (https://github.com/derickso/ShowPlayerInMenus)
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RotateCamera(RE::Actor* target) {
-    auto camera = RE::PlayerCamera::GetSingleton();
-    auto ini = RE::INISettingCollection::GetSingleton();
-    bool isBeastForm = false;
-    bool isVampireLord = false;
-    camera->cameraTarget = target;
+void RotateCamera(RE::Actor* target)
+{
+    auto* camera        = RE::PlayerCamera::GetSingleton();
+    auto* ini           = RE::INISettingCollection::GetSingleton();
+    bool  isBeastForm   = false;
+    bool  isVampireLord = false;
 
-    auto thirdState = (RE::ThirdPersonState*)camera->cameraStates[RE::CameraState::kThirdPerson].get();
+    auto* thirdState = static_cast<RE::ThirdPersonState*>(camera->GetRuntimeData().cameraStates[RE::CameraState::kThirdPerson].get());
 
-    if (target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("WerewolfBeastRace") ||
-        target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("DLC2WerebearBeastRace")) {
+    RE::NiPointer<RE::Actor> targetMount;
+    const bool               isMounted = target->GetMount(targetMount);
+
+    auto* mountState = isMounted ? static_cast<RE::HorseCameraState*>(camera->GetRuntimeData().cameraStates[RE::CameraState::kMount].get()) : nullptr;
+
+    AcquireSmoothCamCameraControl();
+
+    camera->cameraTarget = (isMounted && targetMount) ? targetMount.get() : target;
+
+    if (target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("WerewolfBeastRace")
+        || target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("DLC2WerebearBeastRace"))
+    {
         isBeastForm = true;
-    } else if (target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("DLC1VampireBeastRace")) {
+    }
+    else if (target->GetRace() == RE::TESForm::LookupByEditorID<RE::TESRace>("DLC1VampireBeastRace")) {
         isVampireLord = true;
     }
-    
-    // collect original values for later
-    targetActor = target;
-    targetAngleX = target->data.angle.x;
-    targetRotation = target->data.angle.z;
-    freeRotation = thirdState->freeRotation;
-    targetZoomOffset = thirdState->targetZoomOffset;
-    g_prevState = camera->currentState.get();
-    g_freeRotation = freeRotation;
-    timescale = RE::TESForm::LookupByID<RE::TESGlobal>(0x3A)->value;
+
+    // Collect original values for later.
+    targetActor       = target;
+    targetAngleX      = target->data.angle.x;
+    targetRotation    = target->data.angle.z;
+    freeRotation      = thirdState->freeRotation;
+    targetZoomOffset  = thirdState->targetZoomOffset;
+    g_prevState       = camera->currentState.get();
+    g_freeRotation    = freeRotation;
+    timescale         = RE::TESForm::LookupByID<RE::TESGlobal>(0x3A)->value;
     posOffsetExpected = thirdState->posOffsetExpected;
+
+    g_savedThirdPersonTranslation = thirdState->translation;
+    g_savedPosOffsetActual        = thirdState->posOffsetActual;
+    g_savedCurrentZoomOffset      = thirdState->currentZoomOffset;
+    g_savedZoomOffset             = thirdState->savedZoomOffset;
+    g_savedTargetYaw              = thirdState->targetYaw;
+    g_savedCurrentYaw             = thirdState->currentYaw;
+
     if (camera->IsInFirstPerson()) {
         forced3rdPerson = true;
     }
+
+    g_savedMountCamera          = false;
+    g_savedMountActorPitchValid = false;
+
+    if (isMounted && targetMount) {
+        g_savedMountActorPitch      = targetMount->data.angle.x;
+        g_savedMountActorPitchValid = true;
+    }
+
+    if (isMounted && camera->currentState == camera->GetRuntimeData().cameraStates[RE::CameraState::kMount]) {
+        if (mountState) {
+            g_savedMountFreeRotation      = mountState->freeRotation;
+            g_savedMountTranslation       = mountState->translation;
+            g_savedMountPosOffsetExpected = mountState->posOffsetExpected;
+            g_savedMountPosOffsetActual   = mountState->posOffsetActual;
+            g_savedMountTargetZoomOffset  = mountState->targetZoomOffset;
+            g_savedMountCurrentZoomOffset = mountState->currentZoomOffset;
+            g_savedMountSavedZoomOffset   = mountState->savedZoomOffset;
+
+            g_savedMountCamera = true;
+        }
+    }
+
+    if (isMounted && targetMount) {
+        targetMount->data.angle.x = 0.1f;
+    }
+
     camera->SetState(thirdState);
-    // camera->UpdateThirdPerson(player->AsActorState()->IsWeaponDrawn());
 
     // set over the shoulder camera values for when player has weapon drawn and unpaused menu(s) in order to prevent
     // camera from snapping
-    overShoulderCombatPosX = ini->GetSetting("fOverShoulderCombatPosX:Camera");
-    overShoulderCombatAddY = ini->GetSetting("fOverShoulderCombatAddY:Camera");
-    overShoulderCombatPosZ = ini->GetSetting("fOverShoulderCombatPosZ:Camera");
-    autoVanityModeDelay = ini->GetSetting("fAutoVanityModeDelay:Camera");
-    overShoulderPosX = ini->GetSetting("fOverShoulderPosX:Camera");
-    overShoulderPosZ = ini->GetSetting("fOverShoulderPosZ:Camera");
-    vanityModeMinDist = ini->GetSetting("fVanityModeMinDist:Camera");
-    vanityModeMaxDist = ini->GetSetting("fVanityModeMaxDist:Camera");
-    mouseWheelZoomSpeed = ini->GetSetting("fMouseWheelZoomSpeed:Camera");
-    togglePOVDelay = ini->GetSetting("fTogglePOVDelay:Controls");
+    overShoulderCombatPosX  = ini->GetSetting("fOverShoulderCombatPosX:Camera");
+    overShoulderCombatAddY  = ini->GetSetting("fOverShoulderCombatAddY:Camera");
+    overShoulderCombatPosZ  = ini->GetSetting("fOverShoulderCombatPosZ:Camera");
+    autoVanityModeDelay     = ini->GetSetting("fAutoVanityModeDelay:Camera");
+    overShoulderPosX        = ini->GetSetting("fOverShoulderPosX:Camera");
+    overShoulderPosZ        = ini->GetSetting("fOverShoulderPosZ:Camera");
+    vanityModeMinDist       = ini->GetSetting("fVanityModeMinDist:Camera");
+    vanityModeMaxDist       = ini->GetSetting("fVanityModeMaxDist:Camera");
+    mouseWheelZoomSpeed     = ini->GetSetting("fMouseWheelZoomSpeed:Camera");
+    togglePOVDelay          = ini->GetSetting("fTogglePOVDelay:Controls");
     fOverShoulderCombatPosX = overShoulderCombatPosX->GetFloat();
     fOverShoulderCombatAddY = overShoulderCombatAddY->GetFloat();
     fOverShoulderCombatPosZ = overShoulderCombatPosZ->GetFloat();
-    fAutoVanityModeDelay = autoVanityModeDelay->GetFloat();
-    fOverShoulderPosX = overShoulderPosX->GetFloat();
-    fOverShoulderPosZ = overShoulderPosZ->GetFloat();
-    fVanityModeMinDist = vanityModeMinDist->GetFloat();
-    fVanityModeMaxDist = vanityModeMaxDist->GetFloat();
-    fMouseWheelZoomSpeed = mouseWheelZoomSpeed->GetFloat();
-    fTogglePOVDelay = togglePOVDelay->GetFloat();
+    fAutoVanityModeDelay    = autoVanityModeDelay->GetFloat();
+    fOverShoulderPosX       = overShoulderPosX->GetFloat();
+    fOverShoulderPosZ       = overShoulderPosZ->GetFloat();
+    fVanityModeMinDist      = vanityModeMinDist->GetFloat();
+    fVanityModeMaxDist      = vanityModeMaxDist->GetFloat();
+    fMouseWheelZoomSpeed    = mouseWheelZoomSpeed->GetFloat();
+    fTogglePOVDelay         = togglePOVDelay->GetFloat();
 
-    worldFOV = camera->worldFOV;
+    worldFOV = camera->GetRuntimeData2().worldFOV;
     target->GetGraphVariableBool("IsNPC", playerHeadtrackingEnabled);
 
     // temporarily disable headtracking if enabled
@@ -344,91 +448,86 @@ void RotateCamera(RE::Actor* target) {
 
     // toggle anim cam which unshackles camera and lets it move in front of player with their weapon drawn, necessary if
     // not using TDM
-    thirdState->toggleAnimCam = true;
+    g_savedToggleAnimCam       = thirdState->toggleAnimCam;
+    g_savedFreeRotationEnabled = thirdState->freeRotationEnabled;
+    g_savedPitchZoomOffset     = thirdState->pitchZoomOffset;
+
+    thirdState->toggleAnimCam       = true;
     thirdState->freeRotationEnabled = true;
 
-    autoVanityModeDelay->data.f = 10800.0f;  // 3 hours
-    togglePOVDelay->data.f = 10800.0f;
+    autoVanityModeDelay->data.f = 10800.0f; // 3 hours
+    togglePOVDelay->data.f      = 10800.0f;
 
     if (g_isUltraWide) {
         fNewOverShoulderCombatPosX = -28.0f;
-    } else {
+    }
+    else {
         fNewOverShoulderCombatPosX = -35.0f;
     }
 
     if (isBeastForm) {
         fNewOverShoulderCombatPosX -= 27.0f;
-    } else if (target->AsActorState()->IsWeaponDrawn()) {
+    }
+    else if (target->AsActorState()->IsWeaponDrawn()) {
         fNewOverShoulderCombatPosX -= 5.0f;
     }
 
     fNewOverShoulderCombatAddY = 0.f;
-    auto targetSitState = target->AsActorState()->GetSitSleepState();
-    if (target->IsOnMount()) {
-        fNewOverShoulderCombatPosZ = 35.0f + (target->GetHeight() - 130);
+    auto targetSitState        = target->AsActorState()->GetSitSleepState();
+    auto targetSneakState      = target->AsActorState()->IsSneaking();
+    if (isMounted && targetMount) {
+        fNewOverShoulderCombatPosX = g_isUltraWide ? -45.0f : -55.0f;
+        fNewOverShoulderCombatPosZ = 35.0f;
+
         vanityModeMinDist->data.f = 190.0f;
         vanityModeMaxDist->data.f = 190.0f;
-    } else if (targetSitState >= RE::SIT_SLEEP_STATE::kWantToSit &&
-               targetSitState <= RE::SIT_SLEEP_STATE::kWantToStand) {
+    }
+    else if (targetSitState >= RE::SIT_SLEEP_STATE::kWantToSit && targetSitState <= RE::SIT_SLEEP_STATE::kWantToStand) {
         fNewOverShoulderCombatPosZ = -53.0f + (target->GetHeight() - 130);
-        vanityModeMinDist->data.f = 155.0f;
-        vanityModeMaxDist->data.f = 155.0f;
-    } 
+        vanityModeMinDist->data.f  = 155.0f;
+        vanityModeMaxDist->data.f  = 155.0f;
+    }
+    else if (targetSneakState) {
+        fNewOverShoulderCombatPosX = g_isUltraWide ? -38.0f : -50.0f;
+        fNewOverShoulderCombatPosZ = -12.0f + (target->GetHeight() - 128);
+        vanityModeMinDist->data.f  = 160.0f;
+        vanityModeMaxDist->data.f  = 160.0f;
+    }
     else if (isBeastForm) {
         fNewOverShoulderCombatPosZ = -32.0f + (target->GetHeight() - 130);
-        vanityModeMinDist->data.f = 200.0f;
-        vanityModeMaxDist->data.f = 200.0f;
-    } else if (isVampireLord) {
+        vanityModeMinDist->data.f  = 210.0f;
+        vanityModeMaxDist->data.f  = 210.0f;
+    }
+    else if (isVampireLord) {
         fNewOverShoulderCombatPosZ = -37.0f + (target->GetHeight() - 128);
-        vanityModeMinDist->data.f = 165.0f;
-        vanityModeMaxDist->data.f = 165.0f;
-    } else if (target->AsActorState()->IsWeaponDrawn()) {
+        vanityModeMinDist->data.f  = 165.0f;
+        vanityModeMaxDist->data.f  = 165.0f;
+    }
+    else if (target->AsActorState()->IsWeaponDrawn()) {
         fNewOverShoulderCombatPosZ = -32.0f + (target->GetHeight() - 128);
-        vanityModeMinDist->data.f = 165.0f;
-        vanityModeMaxDist->data.f = 165.0f;
+        vanityModeMinDist->data.f  = 165.0f;
+        vanityModeMaxDist->data.f  = 165.0f;
     }
     else {
         fNewOverShoulderCombatPosZ = -22.0f + (target->GetHeight() - 128);
-        vanityModeMinDist->data.f = 155.0f;
-        vanityModeMaxDist->data.f = 155.0f;
+        vanityModeMinDist->data.f  = 155.0f;
+        vanityModeMaxDist->data.f  = 155.0f;
     }
 
     thirdState->freeRotation.x = MATH_PI - 0.5f;
+    thirdState->freeRotation.y = 0.0f;
 
-    if (target->IsOnMount()) {
-        RE::NiPointer<RE::Actor> targetMount;
-        if (target->GetMount(targetMount)) {
-            auto* node = targetMount->Get3D();
+    target->data.angle.x = 0.1f;
 
-            RE::NiMatrix3 rot = node->world.rotate;
-            RE::NiPoint3 forward = rot * RE::NiPoint3{0, 1, 0};
-            forward.Unitize();
-
-            float slope = forward.z;
-            thirdState->freeRotation.y = targetMount.get()->data.angle.x - 0.1f;
-            logger::debug("forward.z: {}", forward.z);
-            
-            if (forward.z < 0) { //going downhill
-                fNewOverShoulderCombatPosX += 70.0f * forward.z;
-                fNewOverShoulderCombatPosZ += 60.0f * forward.z;
-            } else { //going uphill
-                fNewOverShoulderCombatPosX += 40.0f * forward.z;
-                fNewOverShoulderCombatPosZ += 50.0f * forward.z;
-            }
-            vanityModeMinDist->data.f -= 110.0f * forward.z;
-            vanityModeMaxDist->data.f -= 110.0f * forward.z;
-        }
-    } else {
-        thirdState->freeRotation.y = 0.0f;
+    if (isMounted && targetMount) {
+        targetMount->data.angle.x = 0.1f;
     }
 
-    // account for camera freeRotation settings getting pushed into player's pitch (x) values when weapon drawn
-    if (!target->AsActorState()->IsWeaponDrawn())
-        target->data.angle.x = 0.1f;
-    else {
-        target->data.angle.x -= target->data.angle.x - 0.1f;
-    }
-    
+    thirdState->UpdateRotation();
+
+    thirdState->currentYaw = thirdState->targetYaw;
+    camera->GetRuntimeData2().yaw = thirdState->currentYaw;
+
     overShoulderCombatPosX->data.f = fNewOverShoulderCombatPosX;
     overShoulderCombatAddY->data.f = fNewOverShoulderCombatAddY;
     overShoulderCombatPosZ->data.f = fNewOverShoulderCombatPosZ;
@@ -443,81 +542,117 @@ void RotateCamera(RE::Actor* target) {
     // make final camera distance not depend on camera pitch (looking down at player)
     thirdState->pitchZoomOffset = 0.1f;
 
-    thirdState->posOffsetExpected = thirdState->posOffsetActual =
-        RE::NiPoint3(fNewOverShoulderCombatPosX, fNewOverShoulderCombatAddY, fNewOverShoulderCombatPosZ);
+    thirdState->posOffsetExpected = thirdState->posOffsetActual = RE::NiPoint3(fNewOverShoulderCombatPosX, fNewOverShoulderCombatAddY, fNewOverShoulderCombatPosZ);
 
-    camera->worldFOV = 50.f;
+    camera->GetRuntimeData2().worldFOV = 50.f;
 
     camera->Update();
 
-    //timescale to 0
+    // timescale to 0
     RE::TESForm::LookupByID<RE::TESGlobal>(0x3A)->value = 0.f;
 
-    //disables AI
+    // disables AI
     auto processLists = RE::ProcessLists::GetSingleton();
     if (processLists) {
         for (auto handle : processLists->highActorHandles) {
             auto actor = handle.get().get();
-            if (!actor || actor == target || IsTargetsMount(actor, target)) continue;
+            if (!actor || actor == target || IsTargetsMount(actor, target))
+                continue;
             FreezeNPC(actor);
         }
     }
 }
 
-void ResetCamera() {
-    auto camera = RE::PlayerCamera::GetSingleton();
-    auto thirdState = (RE::ThirdPersonState*)camera->cameraStates[RE::CameraState::kThirdPerson].get();
-    auto* player = RE::PlayerCharacter::GetSingleton();
+void ResetCamera()
+{
+    auto*                    camera     = RE::PlayerCamera::GetSingleton();
+    auto*                    thirdState = static_cast<RE::ThirdPersonState*>(camera->GetRuntimeData().cameraStates[RE::CameraState::kThirdPerson].get());
+    auto*                    player     = RE::PlayerCharacter::GetSingleton();
+    RE::NiPointer<RE::Actor> playerMount;
+    const bool               isMounted = player->GetMount(playerMount);
+    if (g_savedMountActorPitchValid && playerMount) {
+        playerMount->data.angle.x   = g_savedMountActorPitch;
+        g_savedMountActorPitchValid = false;
+    }
 
     if (forced3rdPerson) {
-        // to cameraState = (RE::TESCameraState*)camera->cameraStates[m_camStateId].get();
-        const auto firstPersonState =
-            static_cast<RE::FirstPersonState*>(camera->cameraStates[RE::CameraState::kFirstPerson].get());
+        auto* firstPersonState = static_cast<RE::FirstPersonState*>(camera->GetRuntimeData().cameraStates[RE::CameraState::kFirstPerson].get());
         camera->SetState(firstPersonState);
     }
+
+    camera->cameraTarget = (isMounted && playerMount) ? playerMount.get() : player;
+
     if (g_prevState) {
         camera->SetState(g_prevState);
     }
 
+    if (g_savedMountCamera) {
+        auto* mountState = static_cast<RE::HorseCameraState*>(camera->GetRuntimeData().cameraStates[RE::CameraState::kMount].get());
+
+        if (mountState) {
+            mountState->freeRotation = g_savedMountFreeRotation;
+            mountState->UpdateRotation();
+
+            mountState->translation       = g_savedMountTranslation;
+            mountState->posOffsetExpected = g_savedMountPosOffsetExpected;
+            mountState->posOffsetActual   = g_savedMountPosOffsetActual;
+            mountState->targetZoomOffset  = g_savedMountTargetZoomOffset;
+            mountState->currentZoomOffset = g_savedMountCurrentZoomOffset;
+            mountState->savedZoomOffset   = g_savedMountSavedZoomOffset;
+        }
+
+        g_savedMountCamera = false;
+    }
+
     // restore original values
-    targetActor->data.angle.x = targetAngleX;
-    targetActor->data.angle.z = targetRotation;
-    autoVanityModeDelay->data.f = fAutoVanityModeDelay;
-    togglePOVDelay->data.f = fTogglePOVDelay;
-    thirdState->toggleAnimCam = false;
-    thirdState->targetZoomOffset = targetZoomOffset;
-    thirdState->freeRotation = freeRotation;
-    vanityModeMinDist->data.f = fVanityModeMinDist;
-    vanityModeMaxDist->data.f = fVanityModeMaxDist;
-    camera->worldFOV = worldFOV;
-    thirdState->posOffsetExpected = thirdState->posOffsetActual = posOffsetExpected;
-    overShoulderCombatPosX->data.f = fOverShoulderCombatPosX;
-    overShoulderCombatAddY->data.f = fOverShoulderCombatAddY;
-    overShoulderCombatPosZ->data.f = fOverShoulderCombatPosZ;
-    overShoulderPosX->data.f = fOverShoulderPosX;
-    overShoulderPosZ->data.f = fOverShoulderPosZ;
+    targetActor->data.angle.x       = targetAngleX;
+    targetActor->data.angle.z       = targetRotation;
+    autoVanityModeDelay->data.f     = fAutoVanityModeDelay;
+    togglePOVDelay->data.f          = fTogglePOVDelay;
+    thirdState->toggleAnimCam       = g_savedToggleAnimCam;
+    thirdState->freeRotationEnabled = g_savedFreeRotationEnabled;
+    thirdState->pitchZoomOffset     = g_savedPitchZoomOffset;
+    thirdState->targetYaw           = g_savedTargetYaw;
+    thirdState->currentYaw          = g_savedCurrentYaw;
+    thirdState->translation         = g_savedThirdPersonTranslation;
+    thirdState->targetZoomOffset    = targetZoomOffset;
+    thirdState->currentZoomOffset   = g_savedCurrentZoomOffset;
+    thirdState->savedZoomOffset     = g_savedZoomOffset;
+    thirdState->freeRotation        = freeRotation;
+    vanityModeMinDist->data.f       = fVanityModeMinDist;
+    vanityModeMaxDist->data.f       = fVanityModeMaxDist;
+    camera->GetRuntimeData2().worldFOV = worldFOV;
+    thirdState->posOffsetExpected   = posOffsetExpected;
+    thirdState->posOffsetActual     = g_savedPosOffsetActual;
+    overShoulderCombatPosX->data.f  = fOverShoulderCombatPosX;
+    overShoulderCombatAddY->data.f  = fOverShoulderCombatAddY;
+    overShoulderCombatPosZ->data.f  = fOverShoulderCombatPosZ;
+    overShoulderPosX->data.f        = fOverShoulderPosX;
+    overShoulderPosZ->data.f        = fOverShoulderPosZ;
     targetActor->SetGraphVariableBool("IsNPC", playerHeadtrackingEnabled);
 
     forced3rdPerson = false;
-
-    camera->cameraTarget = player;
 
     camera->Update();
 
     // camera->Update() function uses this value, so restore it after we've updated the camera
     mouseWheelZoomSpeed->data.f = fMouseWheelZoomSpeed;
 
+    // Gameplay camera fully restored, SmoothCam can take control again
+    ReleaseSmoothCamCameraControl();
+
     rotatedPlayer = false;
 
-    //setting timescale back to its former value
+    // setting timescale back to its former value
     RE::TESForm::LookupByID<RE::TESGlobal>(0x3A)->value = timescale;
 
-    //re-enables AI
+    // re-enables AI
     auto processLists = RE::ProcessLists::GetSingleton();
     if (processLists) {
         for (auto handle : processLists->highActorHandles) {
             auto actor = handle.get().get();
-            if (!actor || actor == targetActor || IsTargetsMount(actor, targetActor) || IsMannequin(actor)) continue;
+            if (!actor || actor == targetActor || IsTargetsMount(actor, targetActor) || IsMannequin(actor))
+                continue;
             UnfreezeNPC(actor);
         }
     }
@@ -526,19 +661,18 @@ void ResetCamera() {
     targetActor = player;
 }
 
-//credit goes to powerofthree for the freeze and unfreeze functions (https://github.com/powerof3/ClassicParalysis)
-void FreezeNPC(RE::Actor* a_actor) {
-
+// credit goes to powerofthree for the freeze and unfreeze functions (https://github.com/powerof3/ClassicParalysis)
+void FreezeNPC(RE::Actor* a_actor)
+{
     if (const auto currentProcess = a_actor->GetActorRuntimeData().currentProcess) {
-        if (currentProcess->high->unk470 || currentProcess->high->approachingAutoTeleportDoor || currentProcess->high->fadeState == RE::HighProcessData::FADE_STATE::kTeleportOut) //unk470 = doorActivated
+        if (currentProcess->high->doorActivated || currentProcess->high->approachingAutoTeleportDoor || currentProcess->high->fadeState == RE::HighProcessData::FADE_STATE::kTeleportOut) // unk470 = doorActivated
         {
-            //If going through load door we do not want to freeze
+            // If going through load door we do not want to freeze
             return;
         }
         currentProcess->ClearMuzzleFlashes();
     }
-
-    a_actor->PauseCurrentDialogue();
+    a_actor->StopCurrentDialogue();
     a_actor->GetActorRuntimeData().boolFlags.reset(RE::Actor::BOOL_FLAGS::kShouldAnimGraphUpdate);
 
     if (const auto charController = a_actor->GetCharController(); charController) {
@@ -551,7 +685,8 @@ void FreezeNPC(RE::Actor* a_actor) {
     a_actor->EnableAI(false);
 }
 
-void UnfreezeNPC(RE::Actor* a_actor) {
+void UnfreezeNPC(RE::Actor* a_actor)
+{
     a_actor->GetActorRuntimeData().boolFlags.set(RE::Actor::BOOL_FLAGS::kShouldAnimGraphUpdate);
 
     if (const auto charController = a_actor->GetCharController()) {
@@ -561,19 +696,19 @@ void UnfreezeNPC(RE::Actor* a_actor) {
     a_actor->EnableAI(true);
 }
 
-const TESClass* GetBestMatchingClass(const std::vector<TESClass>& classes,
-                                     const std::unordered_map<std::string, float>& skillLevels) {
+const TESClass* GetBestMatchingClass(const std::vector<TESClass>& classes, const std::unordered_map<std::string, float>& skillLevels)
+{
     const TESClass* bestMatch = nullptr;
-    float bestScore = -1.0f;
+    float           bestScore = -1.0f;
 
     for (const auto& tesClass : classes) {
         float score = 0.0f;
-        //logger::info("CLASS: {}", tesClass.name);
+        // logger::info("CLASS: {}", tesClass.name);
         for (auto skill : tesClass.majorSkills) {
-            //logger::info("-------{}", skill);
+            // logger::info("-------{}", skill);
             auto it = skillLevels.find(skill);
             if (it != skillLevels.end()) {
-                //logger::info("-------lvl{}", it->second);
+                // logger::info("-------lvl{}", it->second);
                 score += it->second;
             }
         }
@@ -591,16 +726,14 @@ const TESClass* GetApprenticeClass(const std::map<int, TESClass>& classes)
 {
     const TESClass* instance = &classes.begin()->second;
 
-    const auto dataHandler = RE::TESDataHandler::GetSingleton();
-    auto* classTrackerForm = dataHandler->LookupForm(RE::FormID(0x0F5), "Apprentice.esp");
+    const auto dataHandler      = RE::TESDataHandler::GetSingleton();
+    auto*      classTrackerForm = dataHandler->LookupForm(RE::FormID(0x0F5), "Apprentice.esp");
 
-    if (classTrackerForm)
-    {
+    if (classTrackerForm) {
         auto classTracker = classTrackerForm->As<RE::TESGlobal>();
-        int classIndex = static_cast<int>(classTracker->value);
+        int  classIndex   = static_cast<int>(classTracker->value);
 
-        for (const auto& [id, tesClass] : classes)
-        {
+        for (const auto& [id, tesClass] : classes) {
             if (id == classIndex) {
                 instance = &tesClass;
             }
@@ -614,16 +747,14 @@ const TESClass* GetApprenticeTrait(const std::map<int, TESClass>& classes)
 {
     const TESClass* instance = &classes.begin()->second;
 
-    const auto dataHandler = RE::TESDataHandler::GetSingleton();
-    auto* traitTrackerForm = dataHandler->LookupForm(RE::FormID(0x161), "Apprentice.esp");
+    const auto dataHandler      = RE::TESDataHandler::GetSingleton();
+    auto*      traitTrackerForm = dataHandler->LookupForm(RE::FormID(0x161), "Apprentice.esp");
 
-    if (traitTrackerForm)
-    {
+    if (traitTrackerForm) {
         auto traitTracker = traitTrackerForm->As<RE::TESGlobal>();
-        int classIndex = static_cast<int>(traitTracker->value);
+        int  classIndex   = static_cast<int>(traitTracker->value);
 
-        for (const auto& [id, tesClass] : classes)
-        {
+        for (const auto& [id, tesClass] : classes) {
             if (id == classIndex) {
                 instance = &tesClass;
             }
@@ -633,7 +764,8 @@ const TESClass* GetApprenticeTrait(const std::map<int, TESClass>& classes)
     return instance;
 }
 
-static bool TryParseStage(const nlohmann::json& jStage, std::int32_t& outStage) {
+static bool TryParseStage(const nlohmann::json& jStage, std::int32_t& outStage)
+{
     try {
         if (jStage.is_number_integer()) {
             outStage = jStage.get<std::int32_t>();
@@ -643,12 +775,14 @@ static bool TryParseStage(const nlohmann::json& jStage, std::int32_t& outStage) 
             outStage = std::stoi(jStage.get<std::string>());
             return true;
         }
-    } catch (...) {
+    }
+    catch (...) {
     }
     return false;
 }
 
-static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
+static bool LoadFactionFile(const fs::path& path, FactionDef& out)
+{
     std::ifstream file(path);
     if (!file.is_open()) {
         logger::warn("Failed to open faction JSON: {}", path.string());
@@ -658,7 +792,8 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
     nlohmann::json j;
     try {
         file >> j;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         logger::error("Error parsing faction JSON {}: {}", path.string(), e.what());
         return false;
     }
@@ -668,13 +803,12 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
         return false;
     }
 
-    if (!j.contains("id") || !j["id"].is_string() || !j.contains("name") || !j["name"].is_string() ||
-        !j.contains("ranks") || !j["ranks"].is_array()) {
+    if (!j.contains("id") || !j["id"].is_string() || !j.contains("name") || !j["name"].is_string() || !j.contains("ranks") || !j["ranks"].is_array()) {
         logger::warn("Skipping invalid faction JSON {} (missing id/name/ranks)", path.string());
         return false;
     }
 
-    out.id = j["id"].get<std::string>();
+    out.id   = j["id"].get<std::string>();
     out.name = j["name"].get<std::string>();
     out.gameFactionCheck.clear();
     if (j.contains("gameFactionCheck") && j["gameFactionCheck"].is_string()) {
@@ -688,17 +822,17 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
             continue;
         }
 
-        if (!r.contains("maleTitle") || !r["maleTitle"].is_string() || !r.contains("femaleTitle") ||
-            !r["femaleTitle"].is_string() || !r.contains("requirements") || !r["requirements"].is_array()) {
-            logger::warn("Skipping invalid rank in {} (missing maleTitle/femaleTitle/requirements)",
-                         path.filename().string());
+        if (!r.contains("maleTitle") || !r["maleTitle"].is_string() || !r.contains("femaleTitle") || !r["femaleTitle"].is_string() || !r.contains("requirements")
+            || !r["requirements"].is_array())
+        {
+            logger::warn("Skipping invalid rank in {} (missing maleTitle/femaleTitle/requirements)", path.filename().string());
             continue;
         }
 
         FactionRankDef rank;
-        rank.requireAll = r.value("requireAll", true);
-        rank.maleTitle = r["maleTitle"].get<std::string>();
-        rank.femaleTitle = r["femaleTitle"].get<std::string>();
+        rank.requireAll      = r.value("requireAll", true);
+        rank.maleTitle       = r["maleTitle"].get<std::string>();
+        rank.femaleTitle     = r["femaleTitle"].get<std::string>();
         rank.rankDisplayOnly = r.value("rankDisplayOnly", false);
         rank.requirements.clear();
 
@@ -717,8 +851,7 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
             req.quest = jr["quest"].get<std::string>();
 
             if (!TryParseStage(jr["stage"], req.stage)) {
-                logger::warn("Skipping requirement with invalid stage in {} (quest={})", path.filename().string(),
-                             req.quest);
+                logger::warn("Skipping requirement with invalid stage in {} (quest={})", path.filename().string(), req.quest);
                 continue;
             }
 
@@ -733,7 +866,6 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
         out.ranks.emplace_back(std::move(rank));
     }
 
-
     if (out.ranks.empty()) {
         logger::warn("Faction '{}' has no valid ranks: {}", out.id, path.string());
     }
@@ -741,7 +873,8 @@ static bool LoadFactionFile(const fs::path& path, FactionDef& out) {
     return true;
 }
 
-static bool AreRankRequirementsMet(const FactionRankDef& rank) {
+static bool AreRankRequirementsMet(const FactionRankDef& rank)
+{
     if (rank.requirements.empty()) {
         return false;
     }
@@ -754,7 +887,8 @@ static bool AreRankRequirementsMet(const FactionRankDef& rank) {
             }
         }
         return true;
-    } else {
+    }
+    else {
         // OR
         for (const auto& req : rank.requirements) {
             if (IsQuestStageAtLeast(req.quest, req.stage)) {
@@ -765,8 +899,8 @@ static bool AreRankRequirementsMet(const FactionRankDef& rank) {
     }
 }
 
-
-void LoadFactionDefinitions() {
+void LoadFactionDefinitions()
+{
     g_factionDefs.clear();
 
     try {
@@ -794,14 +928,19 @@ void LoadFactionDefinitions() {
         }
 
         logger::info("Faction JSON scan complete: {} loaded", loaded);
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         logger::error("Error iterating faction directory {}: {}", FACTIONS_DIRECTORY, e.what());
     }
 }
 
-const std::vector<FactionDef>& GetFactionDefinitions() { return g_factionDefs; }
+const std::vector<FactionDef>& GetFactionDefinitions()
+{
+    return g_factionDefs;
+}
 
-static bool IsQuestStageAtLeast(const std::string& questEdid, std::int32_t requiredStage) {
+static bool IsQuestStageAtLeast(const std::string& questEdid, std::int32_t requiredStage)
+{
     if (questEdid.empty()) {
         return false;
     }
@@ -816,8 +955,8 @@ static bool IsQuestStageAtLeast(const std::string& questEdid, std::int32_t requi
     return curStage >= requiredStage;
 }
 
-bool TryGetBestRankForFaction(const FactionDef& def, RE::SEXES::SEX gender, std::string& outRankTitle,
-                              bool& outRankDisplayOnly) {
+bool TryGetBestRankForFaction(const FactionDef& def, RE::SEXES::SEX gender, std::string& outRankTitle, bool& outRankDisplayOnly)
+{
     outRankTitle.clear();
     outRankDisplayOnly = false;
 
@@ -828,25 +967,30 @@ bool TryGetBestRankForFaction(const FactionDef& def, RE::SEXES::SEX gender, std:
     bool found = false;
     for (const auto& r : def.ranks) {
         if (AreRankRequirementsMet(r)) {
-            outRankTitle = (gender == RE::SEXES::SEX::kFemale) ? r.femaleTitle : r.maleTitle;
+            outRankTitle       = (gender == RE::SEXES::SEX::kFemale) ? r.femaleTitle : r.maleTitle;
             outRankDisplayOnly = r.rankDisplayOnly;
-            found = true;
+            found              = true;
         }
     }
 
     return found;
 }
 
-static inline bool IsWS(unsigned char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
+inline static bool IsWS(unsigned char c)
+{
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+}
 
-static std::string TrimRightCopy(std::string s) {
+static std::string TrimRightCopy(std::string s)
+{
     while (!s.empty() && IsWS(static_cast<unsigned char>(s.back()))) {
         s.pop_back();
     }
     return s;
 }
 
-std::string RemoveLastDotSentence(std::string text) {
+std::string RemoveLastDotSentence(std::string text)
+{
     text = TrimRightCopy(std::move(text));
     if (text.empty()) {
         return text;
@@ -860,7 +1004,7 @@ std::string RemoveLastDotSentence(std::string text) {
             continue;
         }
 
-        const bool atEnd = (i + 1 >= text.size());
+        const bool atEnd    = (i + 1 >= text.size());
         const bool nextIsWS = (!atEnd && IsWS(static_cast<unsigned char>(text[i + 1])));
 
         if (atEnd || nextIsWS) {
@@ -880,7 +1024,8 @@ std::string RemoveLastDotSentence(std::string text) {
     return TrimRightCopy(std::move(text));
 }
 
-std::string CollapsePercent(std::string s) {
+std::string CollapsePercent(std::string s)
+{
     std::string out;
     out.reserve(s.size());
 
@@ -891,7 +1036,8 @@ std::string CollapsePercent(std::string s) {
                 out.push_back('%');
                 lastWasPercent = true;
             }
-        } else {
+        }
+        else {
             out.push_back(c);
             lastWasPercent = false;
         }
@@ -899,13 +1045,14 @@ std::string CollapsePercent(std::string s) {
     return out;
 }
 
-static bool IsPlayerInFactionWithRank(const std::string& factionEdid) {
+static bool IsPlayerInFactionWithRank(const std::string& factionEdid)
+{
     if (factionEdid.empty()) {
         return true;
     }
 
     auto* player = RE::PlayerCharacter::GetSingleton();
-    auto* base = player ? player->GetActorBase() : nullptr;
+    auto* base   = player ? player->GetActorBase() : nullptr;
     if (!base) {
         return false;
     }
@@ -913,13 +1060,14 @@ static bool IsPlayerInFactionWithRank(const std::string& factionEdid) {
     bool found = false;
 
     player->VisitFactions([&](const RE::TESFaction* fac, int8_t rank) {
-        if (!fac) return false;
+        if (!fac)
+            return false;
 
         if (rank > -1) {
             auto edid = clib_util::editorID::get_editorID(fac);
             if (edid == factionEdid) {
                 found = true;
-                return true;  // stop iteration
+                return true; // stop iteration
             }
         }
         return false;
@@ -927,97 +1075,3 @@ static bool IsPlayerInFactionWithRank(const std::string& factionEdid) {
 
     return found;
 }
-
-/*
-namespace {
-    static RE::BSSceneGraph* GetWorldBSSceneGraph() {
-        auto* cam = RE::Main::WorldRootCamera();
-        if (!cam) {
-            return nullptr;
-        }
-
-        for (RE::NiAVObject* p = cam; p; p = p->parent) {
-            if (auto* sg = skyrim_cast<RE::BSSceneGraph*>(p)) {
-                return sg;
-            }
-        }
-
-        return nullptr;
-    }
-
-    static void SetCulledTracked(RE::NiAVObject* obj, bool culled) {
-        if (!obj) return;
-
-        for (auto& e : g_cullRestore) {
-            if (e.obj == obj) {
-                obj->SetAppCulled(culled);
-                return;
-            }
-        }
-
-        g_cullRestore.push_back({obj, obj->GetAppCulled()});
-        obj->SetAppCulled(culled);
-    }
-
-    static void SetCulledRecursiveTracked(RE::NiAVObject* obj, bool culled) {
-        if (!obj) return;
-
-        SetCulledTracked(obj, culled);
-
-        if (auto* node = obj->AsNode()) {
-            for (auto& child : node->GetChildren()) {
-                SetCulledRecursiveTracked(child.get(), culled);
-            }
-        }
-    }
-
-    static void UncullParentChainTracked(RE::NiAVObject* obj, RE::NiAVObject* stopAt) {
-        for (auto* p = obj ? obj->parent : nullptr; p; p = p->parent) {
-            SetCulledTracked(p, false);
-            if (p == stopAt) {
-                break;
-            }
-        }
-    }
-}
-
-void HideWorld() {
-    if (g_worldHidden) {
-        return;
-    }
-
-    g_cullRestore.clear();
-
-    auto* sg = GetWorldBSSceneGraph();
-    if (!sg) return;
-
-    auto* player = RE::PlayerCharacter::GetSingleton();
-    auto* player3D = player ? player->Get3D() : nullptr;
-    if (!player3D) return;
-
-    // Hide whole world
-    SetCulledRecursiveTracked(sg, true);
-
-    // Bring player back
-    SetCulledRecursiveTracked(player3D, false);
-    UncullParentChainTracked(player3D, sg);
-
-    g_worldHidden = true;
-}
-
-
-void ShowWorld() {
-    if (!g_worldHidden) {
-        return;
-    }
-
-    // Restore original states in reverse order
-    for (auto it = g_cullRestore.rbegin(); it != g_cullRestore.rend(); ++it) {
-        if (it->obj) {
-            it->obj->SetAppCulled(it->wasCulled);
-        }
-    }
-
-    g_cullRestore.clear();
-    g_worldHidden = false;
-}*/
